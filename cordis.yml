@@ -1,0 +1,15 @@
+# Development overlay. Plugin paths in a patch file MUST be absolute — the
+# patch contributes configuration only and does not change how the loader
+# resolves module paths.
+#
+#   pnpm dsh web --patch ./dsh-harness-audit/cordis.yml
+#
+- insert:
+    - id: harness-audit
+      name: 'F:/A-proj/opensource/deepseek-harness/dsh-harness-audit/src/index.ts'
+      config:
+        # C14 alone is the M2 milestone: its criteria are the hardest in the
+        # set, so false positives are attributable to the prompt rather than
+        # to an ambiguous criterion.
+        checks: ['C14']
+        concurrency: 1

@@ -1,0 +1,6 @@
+# Layer contributed by the dsh-harness-audit bundle. Plugin rows reference the
+# package by NAME (not a relative source path) so Node resolution finds the
+# installed code. See docs/user/develop/basic/publish.zh.md.
+- insert:
+    - id: harness-audit
+      name: dsh-harness-audit
