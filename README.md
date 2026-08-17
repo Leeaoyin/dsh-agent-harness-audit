@@ -74,9 +74,13 @@ Each check is one failure mode of an agent loop, and states what to look at.
 /harness-audit all      # all fifteen
 ```
 
+![The dimension picker: fifteen options, each with a plain-language line saying what it examines](assets/picker.png)
+
 The command returns immediately and the audit runs as a background job, so it
 does not block the session. When it finishes, the agent is woken and reports.
 Ask for progress at any time with `job_output <id>`.
+
+![The command returns at once, naming the dimensions it started, and the agent confirms in one line](assets/announce.png)
 
 Two files land in `outputDir` (default `.harness-audit/`), named by local time
 and the dimensions covered:
@@ -131,6 +135,11 @@ installed.
    positives.
 3. **Summary** — pure code. No model writes it: that is how `suspected` turns
    into `confirmed` and how unevidenced claims get in.
+
+![The subagent panel during a run: one entry per check, each with its own token count and elapsed time](assets/subagents.png)
+
+One entry per check, each with its own cost. That separation is what makes the
+per-check figures in the report real rather than estimated.
 
 ## Evidence validation
 
