@@ -113,8 +113,52 @@ now refuse those paths, and the same run costs 147s instead of 698s.
 
 ## Install
 
+### First, get DeepSeek Harness
+
+This is a plugin — it needs a `dsh` install to mount into. With Node.js
+present:
+
+```sh
+npx @deepseek-ai/dsh web
+```
+
+That starts the Web UI at `http://127.0.0.1:3080`. Or from a source checkout:
+
+```sh
+git clone https://github.com/deepseek-ai/deepseek-harness.git
+cd deepseek-harness
+pnpm install
+pnpm run build
+pnpm dsh web
+```
+
+Two things worth knowing before you build on it:
+
+- **DeepSeek Harness is a developer preview and there will be
+  compatibility-breaking changes.** This plugin pins its peer dependencies to
+  `^0.1.0-rc.5` for that reason.
+- **`dsh plugin` shells out to pnpm**, so pnpm must be on your PATH for the
+  install step below.
+
+### Then install this plugin
+
 ```bash
 dsh plugin --profile web add dsh-harness-audit
+```
+
+`npm i dsh-harness-audit` downloads the package but does **not** activate it —
+`dsh plugin add` installs it into the profile, and the `dsh.bundle` declaration
+in `package.json` is what gets its configuration layer mounted. Check it landed:
+
+```bash
+dsh --profile web --dump-config
+```
+
+A `# == dsh-harness-audit` layer should appear. To remove it later, use the
+package name:
+
+```bash
+dsh plugin --profile web remove dsh-harness-audit
 ```
 
 Distribution is via npm or `pnpm pack`. A GitHub install works too, but pulls
