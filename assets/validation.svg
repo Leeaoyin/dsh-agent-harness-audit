@@ -1,0 +1,87 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 340" width="880" height="340" role="img" aria-label="A submitted finding passes six gates; failing any gate returns it to the subagent with the reason.">
+  <style>
+    .bg    { fill: #ffffff; }
+    .card  { fill: #f6f8fa; stroke: #d0d7de; }
+    .key   { fill: #eef3fb; stroke: #3f6fd0; }
+    .ok    { fill: #eef6ec; stroke: #4a9a5e; }
+    .bad   { fill: #fdf2f0; stroke: #c0644f; }
+    .t     { fill: #1f2328; font-family: ui-sans-serif, system-ui, sans-serif; }
+    .mut   { fill: #656d76; font-family: ui-sans-serif, system-ui, sans-serif; }
+    .mono  { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .arrow { stroke: #656d76; fill: none; }
+    .head  { fill: #656d76; }
+    .rej   { stroke: #c0644f; fill: none; stroke-dasharray: 5 4; }
+    .rejh  { fill: #c0644f; }
+    @media (prefers-color-scheme: dark) {
+      .bg   { fill: #0d1117; }
+      .card { fill: #161b22; stroke: #30363d; }
+      .key  { fill: #0f1d31; stroke: #4d8bf0; }
+      .ok   { fill: #12261a; stroke: #3fb950; }
+      .bad  { fill: #2b1416; stroke: #f85149; }
+      .t    { fill: #e6edf3; }
+      .mut  { fill: #9198a1; }
+      .arrow { stroke: #9198a1; }
+      .head { fill: #9198a1; }
+      .rej  { stroke: #f85149; }
+      .rejh { fill: #f85149; }
+    }
+  </style>
+  <rect class="bg" width="880" height="340" rx="6"/>
+
+  <!-- input -->
+  <rect class="card" x="24" y="92" width="152" height="60" rx="8" stroke-width="1.5"/>
+  <text class="t mono" x="42" y="118" font-size="13">report_finding</text>
+  <text class="mut" x="42" y="138" font-size="12">a submitted finding</text>
+
+  <path class="arrow" d="M184 122 H214" stroke-width="1.5"/>
+  <path class="head" d="M214 117 l10 5 -10 5 z"/>
+
+  <!-- gates -->
+  <g font-size="12">
+    <rect class="card" x="232" y="56" width="132" height="38" rx="6" stroke-width="1.3"/>
+    <text class="t" x="246" y="80">1 · in this run</text>
+
+    <rect class="card" x="232" y="103" width="132" height="38" rx="6" stroke-width="1.3"/>
+    <text class="t" x="246" y="127">2 · first-party</text>
+
+    <rect class="card" x="232" y="150" width="132" height="38" rx="6" stroke-width="1.3"/>
+    <text class="t" x="246" y="174">3 · file exists</text>
+
+    <rect class="card" x="380" y="56" width="132" height="38" rx="6" stroke-width="1.3"/>
+    <text class="t" x="394" y="80">4 · line exists</text>
+
+    <rect class="key" x="380" y="103" width="132" height="38" rx="6" stroke-width="1.8"/>
+    <text class="t" x="394" y="127" font-weight="600">5 · evidence</text>
+
+    <rect class="card" x="380" y="150" width="132" height="38" rx="6" stroke-width="1.3"/>
+    <text class="t" x="394" y="174">6 · confirmHint</text>
+  </g>
+
+  <path class="arrow" d="M524 122 H564" stroke-width="1.5"/>
+  <path class="head" d="M564 117 l10 5 -10 5 z"/>
+
+  <!-- accepted -->
+  <rect class="ok" x="582" y="92" width="274" height="60" rx="8" stroke-width="1.5"/>
+  <text class="t" x="602" y="118" font-size="14" font-weight="600">recorded</text>
+  <text class="mut" x="602" y="138" font-size="12">enters the report with its location</text>
+
+  <!-- gate 5 detail, right column under the accepted box -->
+  <text class="t" x="582" y="188" font-size="13" font-weight="600">Gate 5 is the one that matters</text>
+  <text class="mut" x="582" y="210" font-size="12">The quoted code must actually appear</text>
+  <text class="mut" x="582" y="228" font-size="12">within ±3 lines of the cited line, on</text>
+  <text class="mut" x="582" y="246" font-size="12">normalised text — so indentation never</text>
+  <text class="mut" x="582" y="264" font-size="12">causes a false refusal.</text>
+
+  <!-- rejection: down from under the gates, into the top-right of the refusal box -->
+  <path class="rej" d="M446 196 V232" stroke-width="1.5"/>
+  <path class="rejh" d="M441 232 l5 10 5 -10 z"/>
+  <rect class="bad" x="112" y="242" width="350" height="38" rx="6" stroke-width="1.5"/>
+  <text class="t" x="132" y="266" font-size="13">refused — reason returned to the subagent</text>
+
+  <!-- feedback: out of the box's left edge, up to the card's BOTTOM edge -->
+  <path class="rej" d="M112 261 H68 V162" stroke-width="1.5"/>
+  <path class="rejh" d="M63 162 l5 -10 5 10 z"/>
+
+  <text class="mut" x="24" y="308" font-size="12">Criteria can only ask for a location. A tool can refuse the submission.</text>
+  <text class="mut" x="24" y="328" font-size="12">Measured: 2 of 10 submissions refused, both corrected on resubmission.</text>
+</svg>

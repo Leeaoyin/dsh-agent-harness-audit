@@ -25,8 +25,10 @@
     }
   },
   "files": [
-    "lib",
-    "cordis.patch.yml"
+    "README.zh.md",
+    "assets",
+    "cordis.patch.yml",
+    "lib"
   ],
   "dsh": {
     "bundle": {

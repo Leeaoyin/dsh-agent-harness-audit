@@ -1,5 +1,7 @@
 # dsh-harness-audit
 
+English | [中文](README.zh.md)
+
 Audits an agent harness for the failure modes that break agent loops — and
 refuses any finding whose evidence isn't actually in the code.
 
@@ -50,6 +52,8 @@ configured default and audited a different dimension without saying so.
 
 ## Does it work?
 
+![8 of 8 planted defects found, 0 false positives, 205s and 61K/24K tokens for one dimension](assets/results.svg)
+
 Measured against a fixture with known defects — seven deliberate C1 bugs, one
 config-gated case, and one deliberately correct module as a false-positive
 probe:
@@ -76,6 +80,8 @@ installed.
 
 ## How a run works
 
+![Three stages: recon locates landmarks, one subagent per check, then a summary written by code](assets/pipeline.svg)
+
 1. **Recon** — one subagent locates landmarks (agent loop, request assembly,
    tool execution, …) and reports them through `report_landmark`.
 2. **Fan-out** — one throwaway subagent per check, each given exactly one
@@ -87,6 +93,8 @@ installed.
    into `confirmed` and how unevidenced claims get in.
 
 ## Evidence validation
+
+![A submitted finding passes six gates; failing any returns it to the subagent with the reason](assets/validation.svg)
 
 `report_finding` refuses a submission unless:
 

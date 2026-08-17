@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 260" width="880" height="260" role="img" aria-label="Measured against a fixture with a known answer key: 8 of 8 defects found, 0 false positives on the deliberately correct control module.">
+  <style>
+    .bg   { fill: #ffffff; }
+    .card { fill: #f6f8fa; stroke: #d0d7de; }
+    .ok   { fill: #eef6ec; stroke: #4a9a5e; }
+    .t    { fill: #1f2328; font-family: ui-sans-serif, system-ui, sans-serif; }
+    .mut  { fill: #656d76; font-family: ui-sans-serif, system-ui, sans-serif; }
+    .big  { fill: #1a7f37; font-family: ui-sans-serif, system-ui, sans-serif; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .dot  { fill: #4a9a5e; }
+    .ring { fill: none; stroke: #4a9a5e; }
+    @media (prefers-color-scheme: dark) {
+      .bg   { fill: #0d1117; }
+      .card { fill: #161b22; stroke: #30363d; }
+      .ok   { fill: #12261a; stroke: #3fb950; }
+      .t    { fill: #e6edf3; }
+      .mut  { fill: #9198a1; }
+      .big  { fill: #3fb950; }
+      .dot  { fill: #3fb950; }
+      .ring { stroke: #3fb950; }
+    }
+  </style>
+  <rect class="bg" width="880" height="260" rx="6"/>
+
+  <text class="t" x="24" y="38" font-size="16" font-weight="600">Measured against a known answer key</text>
+  <text class="mut" x="24" y="60" font-size="13">Seven planted tool-call pairing defects, one config-gated case, and one deliberately correct control module.</text>
+
+  <!-- found -->
+  <rect class="ok" x="24" y="82" width="256" height="112" rx="8" stroke-width="1.5"/>
+  <text class="big" x="44" y="136" font-size="40" font-weight="700">8 / 8</text>
+  <text class="t" x="44" y="160" font-size="14">defects found</text>
+  <text class="mut" x="44" y="180" font-size="12">no misses</text>
+  <g>
+    <circle class="dot" cx="200" cy="106" r="5"/><circle class="dot" cx="220" cy="106" r="5"/>
+    <circle class="dot" cx="240" cy="106" r="5"/><circle class="dot" cx="260" cy="106" r="5"/>
+    <circle class="dot" cx="200" cy="126" r="5"/><circle class="dot" cx="220" cy="126" r="5"/>
+    <circle class="dot" cx="240" cy="126" r="5"/><circle class="dot" cx="260" cy="126" r="5"/>
+  </g>
+
+  <!-- false positives -->
+  <rect class="ok" x="296" y="82" width="256" height="112" rx="8" stroke-width="1.5"/>
+  <text class="big" x="316" y="136" font-size="40" font-weight="700">0</text>
+  <text class="t" x="316" y="160" font-size="14">false positives</text>
+  <text class="mut" x="316" y="180" font-size="12">control module never flagged</text>
+  <circle class="ring" cx="500" cy="118" r="26" stroke-width="2"/>
+  <circle class="ring" cx="500" cy="118" r="14" stroke-width="2"/>
+
+  <!-- cost -->
+  <rect class="card" x="568" y="82" width="288" height="112" rx="8" stroke-width="1.5"/>
+  <text class="t" x="588" y="110" font-size="14" font-weight="600">Cost, one dimension</text>
+  <text class="t mono" x="588" y="140" font-size="20">205s</text>
+  <text class="t mono" x="588" y="168" font-size="16">61K in / 24K out</text>
+  <text class="mut" x="700" y="140" font-size="12">wall clock</text>
+  <text class="mut" x="700" y="168" font-size="12">tokens</text>
+
+  <text class="mut" x="24" y="224" font-size="12">The one verdict that differed was the auditor being more right than the sheet: it read the default of the</text>
+  <text class="mut" x="24" y="242" font-size="12">environment variable gating the path, and judged it reachable.</text>
+</svg>

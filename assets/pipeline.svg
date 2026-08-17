@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 300" width="880" height="300" role="img" aria-label="Three-stage pipeline: recon locates landmarks, fan-out runs one subagent per check, summary is written by code.">
+  <style>
+    .bg    { fill: #ffffff; }
+    .card  { fill: #f6f8fa; stroke: #d0d7de; }
+    .code  { fill: #eef6ec; stroke: #4a9a5e; }
+    .skip  { fill: #fdf2f0; stroke: #c0644f; }
+    .t     { fill: #1f2328; font-family: ui-sans-serif, system-ui, sans-serif; }
+    .mut   { fill: #656d76; font-family: ui-sans-serif, system-ui, sans-serif; }
+    .mono  { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .arrow { stroke: #656d76; fill: none; }
+    .arrowskip { stroke: #c0644f; fill: none; stroke-dasharray: 5 4; }
+    .head  { fill: #656d76; }
+    .headskip { fill: #c0644f; }
+    @media (prefers-color-scheme: dark) {
+      .bg   { fill: #0d1117; }
+      .card { fill: #161b22; stroke: #30363d; }
+      .code { fill: #12261a; stroke: #3fb950; }
+      .skip { fill: #2b1416; stroke: #f85149; }
+      .t    { fill: #e6edf3; }
+      .mut  { fill: #9198a1; }
+      .arrow, .head { stroke: #9198a1; fill: #9198a1; }
+      .arrow { fill: none; }
+      .arrowskip, .headskip { stroke: #f85149; fill: #f85149; }
+      .arrowskip { fill: none; }
+    }
+  </style>
+  <rect class="bg" width="880" height="300" rx="6"/>
+
+  <!-- stage 1 -->
+  <rect class="card" x="24" y="60" width="196" height="96" rx="8" stroke-width="1.5"/>
+  <text class="t" x="44" y="90" font-size="16" font-weight="600">1 · Recon</text>
+  <text class="mut" x="44" y="114" font-size="13">one subagent locates</text>
+  <text class="mut" x="44" y="132" font-size="13">landmarks in the code</text>
+
+  <path class="arrow" d="M228 108 H274" stroke-width="1.5"/>
+  <path class="head" d="M274 103 l10 5 -10 5 z"/>
+
+  <!-- stage 2 -->
+  <rect class="card" x="292" y="24" width="252" height="168" rx="8" stroke-width="1.5"/>
+  <text class="t" x="312" y="52" font-size="16" font-weight="600">2 · Fan-out</text>
+  <text class="mut" x="312" y="74" font-size="13">one throwaway subagent per</text>
+  <text class="mut" x="312" y="92" font-size="13">check — its criteria only</text>
+  <rect class="card" x="312" y="106" width="66" height="26" rx="4" stroke-width="1"/>
+  <text class="t mono" x="330" y="124" font-size="12">C1</text>
+  <rect class="card" x="386" y="106" width="66" height="26" rx="4" stroke-width="1"/>
+  <text class="t mono" x="404" y="124" font-size="12">C9</text>
+  <rect class="card" x="460" y="106" width="66" height="26" rx="4" stroke-width="1"/>
+  <text class="t mono" x="474" y="124" font-size="12">C14</text>
+  <text class="mut" x="312" y="158" font-size="12">landmark missing →</text>
+  <text class="mut" x="312" y="176" font-size="12">never dispatched</text>
+
+  <path class="arrow" d="M552 108 H598" stroke-width="1.5"/>
+  <path class="head" d="M598 103 l10 5 -10 5 z"/>
+
+  <!-- stage 3 -->
+  <rect class="code" x="616" y="60" width="240" height="96" rx="8" stroke-width="1.5"/>
+  <text class="t" x="636" y="90" font-size="16" font-weight="600">3 · Summary</text>
+  <text class="mut" x="636" y="114" font-size="13">pure code — no model.</text>
+  <text class="mut" x="636" y="132" font-size="13">dedupe, rank, render.</text>
+
+  <!-- not-covered path -->
+  <path class="arrowskip" d="M418 200 V236 H700 V246" stroke-width="1.5"/>
+  <path class="headskip" d="M695 246 l5 10 5 -10 z"/>
+  <rect class="skip" x="576" y="248" width="248" height="34" rx="6" stroke-width="1.5"/>
+  <text class="t" x="596" y="270" font-size="13">reported as “not covered”</text>
+
+  <text class="mut" x="24" y="286" font-size="12">A check with no target is where false positives come from.</text>
+</svg>
