@@ -1,21 +1,32 @@
-# Development overlay. Plugin paths in a patch file MUST be absolute — the
-# patch contributes configuration only and does not change how the loader
-# resolves module paths.
+# Development overlay.
 #
 #   pnpm dsh --profile web --patch ./dsh-harness-audit/cordis.yml
 #
-# NOTE: `web` is an alias for `--profile web` and cannot be combined with
-# `--patch`; use `--profile web` as above.
+# `web` is an alias for `--profile web` and cannot be combined with `--patch`;
+# use `--profile web` as above.
 #
-# On Windows the path must be a `file://` URL. A bare `F:/...` is rejected by
-# the ESM loader with `Received protocol 'f:'`. On POSIX, `/abs/path/...`
-# works as-is.
+# The `name` below is resolved by Node's ESM loader, which accepts only three
+# schemes: `file:`, `data:` and `node:`. So it is either
+#
+#   - an INSTALLED package name, resolved from the profile directory upward
+#     (`dsh-harness-audit` — what the published `cordis.patch.yml` uses), or
+#   - an absolute `file://` URL pointing at source, for editing without a
+#     reinstall. A bare `F:/...` fails with `Received protocol 'f:'`; on POSIX
+#     a plain absolute path works.
+#
+# A git URL cannot go here at all. Those belong in `dsh plugin add`, which
+# installs the package; this row only says which installed thing to mount.
+#
+# Swap the two `name:` lines to develop against source instead of the install.
 - insert:
     - id: harness-audit
       name: 'dsh-harness-audit'
       config:
-        # C14 alone is the M2 milestone: its criteria are the hardest in the
-        # set, so false positives are attributable to the prompt rather than
-        # to an ambiguous criterion.
-        checks: ['C14']
+        # No `checks` default on purpose. A configured default is what once
+        # redirected a `--check c2` run onto C14 without saying so; the
+        # dimension should come from the command or the picker, never from a
+        # value nobody remembers setting.
+        #
+        # `concurrency: 1` stays: it is the cheapest and most debuggable path,
+        # and raising it buys wall-clock at proportional token cost.
         concurrency: 1
