@@ -9,20 +9,60 @@ Fifteen checks, one throwaway subagent each, and a summary written by code
 rather than by a model. The plugin is self-contained: installing it installs
 the criteria too.
 
-## What it actually catches
+## The fifteen checks
 
-The criteria are failure modes, not style. A sample:
+Each check is one failure mode of an agent loop, and states what to look at.
 
-| | |
-|---|---|
-| **C1** | A tool call gets no result, so the next request carries a call with no answer and the model service refuses it. |
-| **C9** | An operation times out *after* its external effect landed, so the retry does it twice — two messages sent, two charges. |
-| **C10** | The user cancels; the subprocess keeps running and the request is still in flight. |
-| **C12** | The model calls the same tool forever, with no cap on rounds or spend. |
-| **C14** | The start of each request keeps changing, so the provider's prefix cache never hits. Nothing errors — it just costs more, every request. |
+<!-- checks:start -->
 
-The full set spans state consistency, untrusted input, failure handling,
-cancellation boundaries, resource limits, and observability.
+**State stays self-consistent**
+
+| | Check | What it examines |
+|---|---|---|
+| `C1` ★ | Tool-call pairing completeness | Whether every way tool execution can end — error, timeout, cancellation included — still records a result, and whether one failure in a parallel batch discards the rest. |
+| `C2` | History is append-only | Whether anything edits a message after it was added, rather than only appending new ones. |
+| `C3` | Crash and checkpoint semantics | What a reader sees if the process dies between the two halves of a multi-part write, and whether that half-written state is detectable on restart. |
+
+**Untrusted input is treated as untrusted**
+
+| | Check | What it examines |
+|---|---|---|
+| `C4` ★ | Model output parsing | How model output is parsed: whether malformed arguments, a truncated stream, or a repeated call id are handled rather than trusted. |
+| `C5` | Path and sandbox boundaries | Whether a model-supplied path is resolved and checked against the workspace root — after symlink resolution, not before. |
+| `C6` | Secrets and ambient environment | What environment a model-generated command inherits, and whether secrets are in it. |
+
+**Failure is a first-class outcome**
+
+| | Check | What it examines |
+|---|---|---|
+| `C7` | Error taxonomy and retryability | Whether failures carry a closed set of error codes classified as retryable, not retryable, or fatal — or arrive as unclassified text. |
+| `C8` | Partial success | Whether independent outcomes collapse into a single status, so one failure hides or discards the successes beside it. |
+| `C9` ★ | Idempotency and side-effect safety | What sits inside the retry wrapper: if the retried region performs a write, a command, or an outbound message, a retry repeats it. |
+
+**Boundaries can be closed**
+
+| | Check | What it examines |
+|---|---|---|
+| `C10` ★ | Cancellation propagation | Whether the cancellation signal actually reaches outbound requests and spawned subprocesses, or stops at the loop. |
+| `C11` | Timeout layering | The timeout layers on one tool call and their relative sizes — the tool budget must expire before the resource underneath it. |
+| `C12` ★ | Loop and budget limits | Whether hard ceilings exist on turns, tool calls, wall-clock time, tokens, and delegation depth. |
+
+**Finite resources are accounted for**
+
+| | Check | What it examines |
+|---|---|---|
+| `C13` ★ | Context management and truncation boundaries | Whether context is managed at all as a session grows, and where truncation cuts — a cut through a call/result pair breaks the history. |
+| `C14` ★ | Prompt prefix determinism | Whether everything before the newest message — system prompt, tool definitions, prior messages — is byte-identical between runs, which is what the cache needs. |
+
+**The run is observable**
+
+| | Check | What it examines |
+|---|---|---|
+| `C15` | Trace completeness and replay | Whether the run leaves an event record covering turns, tool calls and results, retries, truncation, and approvals, complete enough to reconstruct it. |
+
+★ marks the seven critical checks — `/harness-audit p1` runs exactly these.
+
+<!-- checks:end -->
 
 ## Use
 

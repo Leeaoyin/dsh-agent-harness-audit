@@ -15,7 +15,58 @@ Agent 跑不稳,大多数时候不是模型不够聪明,而是循环本身有洞
 - 请求开头的内容每次都在变,服务端前缀缓存永远命中不了。**不报错**,只是每次请求都更贵,没人会发现。
 - 线上出了问题,事后没法重建这次运行到底发生了什么。
 
-这些问题共十五类,覆盖状态一致性、不可信输入、失败处理、边界关闭、资源上限、可观测性六个方面。
+这些问题共十五类,覆盖六个方面:
+
+<!-- checks:start -->
+
+**State stays self-consistent**
+
+| | 检查项 | 查什么 |
+|---|---|---|
+| `C1` ★ | Tool-call pairing completeness | 查工具执行的每一种结束方式(正常返回、报错、超时、取消、提前返回、权限拒绝)是否都写回了结果,以及并行批次里一个失败会不会丢掉其余成功的结果。 |
+| `C2` | History is append-only | 查有没有代码在消息写入之后又去修改它,而不是只追加新消息。 |
+| `C3` | Crash and checkpoint semantics | 查分成两段的写入过程中如果进程挂掉,重启时读到的是什么,以及这种半截状态能不能被识别出来。 |
+
+**Untrusted input is treated as untrusted**
+
+| | 检查项 | 查什么 |
+|---|---|---|
+| `C4` ★ | Model output parsing | 查模型输出是怎么解析的:参数不合法、输出被截断、调用编号重复这些情况是被处理了,还是被当成可信输入。 |
+| `C5` | Path and sandbox boundaries | 查模型给出的路径有没有解析后再与工作区根目录比对,而且必须在符号链接解析之后比对。 |
+| `C6` | Secrets and ambient environment | 查模型生成的命令继承了什么环境变量,里面有没有密钥。 |
+
+**Failure is a first-class outcome**
+
+| | 检查项 | 查什么 |
+|---|---|---|
+| `C7` | Error taxonomy and retryability | 查失败是否带有一组封闭的错误码,并被明确分类为可重试/不可重试/致命,还是只给出一段没有分类的文字。 |
+| `C8` | Partial success | 查多个独立结果会不会被合并成一个状态,导致一个失败掩盖或丢弃旁边那些成功。 |
+| `C9` ★ | Idempotency and side-effect safety | 查重试包裹的范围里有什么:如果被重试的区间包含写入、执行命令或对外发消息,重试就会重复执行它。 |
+
+**Boundaries can be closed**
+
+| | 检查项 | 查什么 |
+|---|---|---|
+| `C10` ★ | Cancellation propagation | 查取消信号有没有真正传到对外请求和派生的子进程,还是只停在循环这一层。 |
+| `C11` | Timeout layering | 查一次工具调用上有几层超时以及它们的大小关系 —— 工具预算必须早于底层资源超时。 |
+| `C12` ★ | Loop and budget limits | 查轮数、工具调用次数、运行时长、token、委派深度上有没有硬性上限。 |
+
+**Finite resources are accounted for**
+
+| | 检查项 | 查什么 |
+|---|---|---|
+| `C13` ★ | Context management and truncation boundaries | 查会话变长时有没有上下文管理,以及截断切在哪里 —— 切开配对的调用与结果会破坏历史。 |
+| `C14` ★ | Prompt prefix determinism | 查最新消息之前的所有内容(系统提示、工具定义、历史消息)在两次运行之间是否逐字节一致,这是缓存命中的前提。 |
+
+**The run is observable**
+
+| | 检查项 | 查什么 |
+|---|---|---|
+| `C15` | Trace completeness and replay | 查这次运行有没有留下覆盖轮次、工具调用与结果、重试、截断、审批的事件记录,且完整到足以重建。 |
+
+★ 是七个关键项 —— `/harness-audit p1` 跑的就是这些。
+
+<!-- checks:end -->
 
 ## 它怎么工作
 
