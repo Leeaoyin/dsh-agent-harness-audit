@@ -1,11 +1,11 @@
 /**
  * The dimension table: ids, priorities, and landmark dependencies only.
  *
- * There is deliberately NO prose here. What each check MEANS lives in the
- * `harness-evaluation` skill, so changing a criterion is a markdown edit
- * rather than a plugin release. The `summary` strings below are routing
- * labels for the report's table of contents, not criteria — a subagent is
- * never shown them and never reasons from them.
+ * There is deliberately NO criteria prose here. What each check MEANS lives
+ * in `./criteria.ts`, which is what a subagent is actually judged against.
+ * The `name` and `group` strings below are routing labels for the report's
+ * headings — a subagent is shown neither, and neither may stand in for the
+ * criteria.
  *
  * @module dsh-harness-audit/checks
  */
@@ -64,7 +64,7 @@ export interface Check {
    */
   context: readonly LandmarkKind[]
   /**
-   * The check's name and group, copied from the skill so the report can render
+   * The check's name and group, used so the report can render
    * `### C<n> · <check name>` and the per-group Summary the template asks for.
    * These are LABELS, never criteria — a subagent is shown neither.
    */
@@ -72,7 +72,7 @@ export interface Check {
   group: string
 }
 
-/** Group headings, in the skill's order. */
+/** Group headings, in criteria order. */
 export const GROUPS: readonly string[] = [
   'State stays self-consistent',
   'Untrusted input is treated as untrusted',

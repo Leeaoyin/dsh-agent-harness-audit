@@ -39,17 +39,37 @@ plugin throws at load time if they are missing, because a silently absent
 skill would make every audit return an empty report that reads like a clean
 bill of health.
 
-Development:
+Once published, users install it the ordinary way:
 
 ```bash
-pnpm dsh web --patch ./dsh-harness-audit/cordis.yml
+dsh plugin --profile web add dsh-harness-audit
 ```
 
-The path inside `cordis.yml` must be absolute — edit it to match your checkout.
+Distribution is via npm or `pnpm pack`. A GitHub install would instead need
+users to authorise a `prepare` build script, which permits this package's code
+to run on their machine outside any agent sandbox; prefer the prebuilt paths.
 
-Distribution is via npm or `pnpm pack`. A GitHub install would need users to
-authorise a `prepare` build script, which permits this package's code to run
-on their machine outside any agent sandbox; prefer the prebuilt paths.
+### Development
+
+```bash
+pnpm dsh --profile web --patch ./dsh-harness-audit/cordis.yml
+```
+
+Three things that cost time when they are wrong:
+
+- **`web` is an alias for `--profile web`** and rejects `--patch` alongside it
+  (`web takes none of parent --profile, --patch, …`). Use `--profile web`.
+- **The path in `cordis.yml` must be absolute, and on Windows a `file://`
+  URL.** A bare `F:/…` fails with `Received protocol 'f:'` from the ESM loader.
+  On POSIX a plain absolute path is fine. Edit it to match your checkout.
+- **Running `dsh` from a source checkout requires that checkout to be built**
+  (`npm run build:lib:host` at minimum). Otherwise the boot fails in
+  `typert-loader` looking for `lib/typert.host.js`, before any plugin loads.
+  A built dsh install — what real users have — is unaffected.
+
+Note that `pnpm install` inside this directory needs `--ignore-workspace` when
+the package sits inside another pnpm workspace's tree; without it pnpm installs
+the outer workspace and ignores this package entirely.
 
 ## Use
 

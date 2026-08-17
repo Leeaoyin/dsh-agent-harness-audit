@@ -1,67 +1,41 @@
----
-name: harness-evaluation
-description: >
-  Audit an AI agent harness (the execution framework around the model — agent
-  loop, tool execution, state management, context management, retry, recovery,
-  permissions, observability) for robustness, safety, and recoverability. Also
-  designs deterministic reliability test suites for such harnesses. Use this
-  whenever someone asks you to review, audit, harden, or write tests for an
-  agent framework, agent runtime, agent loop, tool-calling layer, or
-  "harness" — and also when they describe symptoms of harness fragility
-  without naming it: orphaned tool calls, 400s from the provider on the next
-  turn, runs that won't cancel, duplicated side effects after a retry, state
-  corruption after a crash, infinite tool loops, or prompt cache that never
-  hits. This skill evaluates the framework, NOT whether the model is smart
-  enough to solve a task — do not use it for model or prompt quality
-  evaluation.
----
+/**
+ * The audit criteria, owned by the plugin.
+ *
+ * These were previously supplied by a bundled \`harness-evaluation\` skill that
+ * every subagent loaded at run time. That indirection is gone: the plugin ships
+ * the criteria itself, so installing the plugin installs everything and there is
+ * no second artifact to keep in sync or to lose from a package manifest.
+ *
+ * The trade, recorded so it stays a known cost rather than a surprise: changing
+ * a criterion is now a code change and a release rather than a markdown edit,
+ * and a project can no longer override the criteria by shipping its own skill
+ * of the same name.
+ *
+ * Each check's text is handed to that check's subagent VERBATIM. It is the
+ * judgment standard, and the plugin's own labels — \`name\`, \`group\`, the picker
+ * glosses — are navigation copy that must never stand in for it.
+ *
+ * @module dsh-harness-audit/criteria
+ */
 
-# Agent Harness Evaluation
-
-## What this evaluates
-
-The execution framework around the model. Not the model.
-
-The question this skill answers is not "did the task succeed" but:
-
-- When something goes wrong, does it fail **safely**?
-- Is the state afterwards **consistent and recoverable**?
-- Are side effects **bounded** — never duplicated, never unauthorized?
-- Can you **reconstruct** what happened, and **replay** it?
-
-A harness that succeeds on the happy path and corrupts state on every third
-failure is worse than one that succeeds less often and always fails cleanly.
-Grade accordingly.
-
-## Two modes
-
-Decide which mode applies before doing anything else. If the request is
-ambiguous, ask — the two produce completely different artifacts.
-
-**Mode A — Audit.** The user has a harness codebase and wants to know what's
-weak. Output is a findings report with code locations. Takes minutes. No
-infrastructure required. **This is the default** — start here even when the
-user eventually wants tests, because the audit tells you which tests are
-worth writing.
-
-**Mode B — Build tests.** The user wants a reliability test suite. Output is
-code: scripted model, fake tools, fault injector, oracles, CI wiring. Read
-`references/test-suite.md` and `references/ci-and-metrics.md` before writing
-any of it — there are non-obvious traps, especially in the scripted model.
-
-Most real requests are A then B: audit, then write tests for the specific
-weaknesses the audit found. Do not build a generic test suite for problems
-the codebase doesn't have.
-
----
-
-# Mode A: Audit workflow
-
-## Step 1 — Locate landmarks
+/** How to find the code each check needs, before any check runs. */
+export const LANDMARK_GUIDE = `## Step 1 — Locate landmarks
 
 Before checking anything, find where things live. Record file and line for
 each. Missing landmarks are a normal result, not a failure — they mean the
 corresponding checks report "not implemented" rather than "passed".
+
+**Scope: audit only code this project authored.** Installed dependencies,
+vendored frameworks, and build output — \`.venv\`, \`site-packages\`,
+\`node_modules\`, \`vendor\`, \`dist\`, and the like — are out of scope. A bare
+search will match inside them, and following those hits produces a report
+about somebody else's code that the reader cannot act on. When the project
+builds on a framework, audit how THIS project uses and configures it, not the
+framework's own internals.
+
+The exception is deliberate and explicit: auditing a harness library itself
+is a legitimate job, but then that library IS the project under audit. Decide
+which one you are doing before you start, and say so in the report.
 
 | Landmark | What to look for |
 |---|---|
@@ -80,53 +54,58 @@ corresponding checks report "not implemented" rather than "passed".
 Use symbol-level navigation (go-to-definition, find-references) where
 available; fall back to text search. Search-based location is fine, but
 verify by reading the surrounding function — a grep hit is a candidate, not
-a landmark.
+a landmark.`
 
-## Step 2 — Run the checks
+/** What may be reported and what must be dropped. Sent with every check. */
+export const EVIDENCE_RULES = `# Evidence rules
 
-Fourteen checks below, grouped by the property they protect. Work through
-them in priority order. If context or time is limited, P1 alone is a useful
-audit; P1+P2 is a good one.
+These exist because a report full of plausible-sounding findings with no
+locations is worse than no report — it costs the reader more to verify than
+to audit themselves, and they stop trusting the tool.
 
-For each check, produce zero or more findings. **A finding without a file and
-line number is not a finding — drop it.** See "Evidence rules" below.
+**Every finding carries a file path, a line number, and a verbatim code
+excerpt** that a reader can check in under a minute. No location, no finding.
 
-## Step 3 — Report
+**Three verdicts, and use them honestly:**
 
-Use the report template at the end of this document. Include the
-"Not covered" section — it is not optional.
+| Verdict | Meaning |
+|---|---|
+| \`confirmed\` | Evidence directly supports the claim. |
+| \`suspected\` | A protection is structurally absent, but you could not confirm the path is reachable. State exactly what a human should check. |
+| \`not-implemented\` | The subsystem doesn't exist here. Not a pass. |
 
----
+**Do not upgrade on the way to the summary.** If a finding is \`suspected\` in
+the body it stays \`suspected\` in the summary. This is the single most common
+way this kind of report loses credibility.
 
-# The checks
+**Do not pad.** Zero findings in a group is a fine result and should be
+reported plainly. Inventing marginal findings to make each group non-empty
+destroys the signal.
 
-Priority: **P1** = fails loudly and often, judgment is nearly mechanical.
-**P2** = real production risk, needs more reading. **P3** = matters at scale
-or in specific deployments.
+**Say what you didn't cover.** If a landmark wasn't found, or the codebase
+was too large to read fully, the affected checks go in "Not covered". A
+reader must be able to distinguish "checked, clean" from "never looked".
 
-## Group 1 — State stays self-consistent
+---`
 
-### C1 · Tool-call pairing completeness — P1
-
-**Symptom.** A tool call is emitted but no matching result is recorded on
+/** Criteria for one check, keyed by id. The subagent sees this text as-is. */
+export const CHECK_CRITERIA: Readonly<Record<string, string>> = {
+  C1: `**Symptom.** A tool call is emitted but no matching result is recorded on
 some exit path. The next request carries an unclosed call and the provider
 rejects it (usually 400). Highest-frequency real failure in agent harnesses.
 
 **Check.** Walk every path that can exit tool execution: normal return,
-`catch`, timeout, cancellation, early return, permission denial. Each must
+\`catch\`, timeout, cancellation, early return, permission denial. Each must
 write a result. Then check parallel dispatch: if one call fails, are the
-others' results still recorded? `Promise.all` and equivalents reject on
+others' results still recorded? \`Promise.all\` and equivalents reject on
 first failure and discard the settled results — that breaks both this check
 and C8.
 
 **Confirmed when** a reachable exit path writes no result, or parallel
 dispatch uses all-or-nothing semantics.
 
-**Invariant it protects.** Every tool call has exactly one result.
-
-### C2 · History is append-only — P2
-
-**Symptom.** Messages are mutated after being added — a field backfilled, an
+**Invariant it protects.** Every tool call has exactly one result.`,
+  C2: `**Symptom.** Messages are mutated after being added — a field backfilled, an
 assistant message corrected in place, an id rewritten. Breaks replay, breaks
 debugging, and silently invalidates every cached prefix from the mutation
 point onward.
@@ -137,11 +116,8 @@ original. Legitimate exception: an explicit, isolated compaction step that
 replaces a range — that is C11's territory, not a violation here.
 
 **Confirmed when** message objects already in history are mutated outside a
-declared compaction path.
-
-### C3 · Crash and checkpoint semantics — P2
-
-**Symptom.** The process dies mid-write. On restart the partial state is
+declared compaction path.`,
+  C3: `**Symptom.** The process dies mid-write. On restart the partial state is
 indistinguishable from a complete one, so the harness resumes on top of a
 half-written checkpoint.
 
@@ -155,13 +131,8 @@ Also check: does resume re-execute anything that already ran?
 or resume re-executes a side-effecting operation.
 
 **Invariant it protects.** Recovered state equals the state normal execution
-would have reached.
-
-## Group 2 — Untrusted input is treated as untrusted
-
-### C4 · Model output parsing — P1
-
-**Symptom.** Malformed tool arguments, a truncated stream, or a repeated call
+would have reached.`,
+  C4: `**Symptom.** Malformed tool arguments, a truncated stream, or a repeated call
 id crashes the loop or produces silent garbage. Malformed model output is
 routine, not exceptional.
 
@@ -174,11 +145,8 @@ routine, not exceptional.
    monotonic.
 
 **Confirmed when** model output is deserialized without error handling, or
-partial stream state is committed on early termination.
-
-### C5 · Path and sandbox boundaries — P2
-
-**Symptom.** A model-supplied path escapes the workspace.
+partial stream state is committed on early termination.`,
+  C5: `**Symptom.** A model-supplied path escapes the workspace.
 
 **Check.** Path joining without a subsequent resolve-and-prefix check. Prefix
 checks performed before symlink resolution (the resolved target can point
@@ -186,25 +154,17 @@ outside). Also check whether the check happens on the same string that is
 later opened — validating one variable and opening another is a common bug.
 
 **Confirmed when** a model-supplied path reaches a filesystem call without
-resolve-then-prefix validation.
-
-### C6 · Secrets and ambient environment — P2
-
-**Symptom.** The whole process environment is handed to model-generated
-commands, so every credential in it is one `env` away from the transcript.
+resolve-then-prefix validation.`,
+  C6: `**Symptom.** The whole process environment is handed to model-generated
+commands, so every credential in it is one \`env\` away from the transcript.
 
 **Check.** Subprocess launches that pass the full environment (explicitly, or
 by not specifying one and inheriting). Predictable paths handed to untrusted
 output. Whether tool output is scanned for secrets before entering history.
 
 **Confirmed when** subprocess launch inherits the full environment for
-model-generated commands.
-
-## Group 3 — Failure is a first-class outcome
-
-### C7 · Error taxonomy and retryability — P2
-
-**Symptom.** Callers receive a bare error and cannot decide what to do, so
+model-generated commands.`,
+  C7: `**Symptom.** Callers receive a bare error and cannot decide what to do, so
 they either retry everything or give up on everything.
 
 **Check.** Is there a closed set of error codes a caller can enumerate? Is
@@ -214,22 +174,16 @@ provider exception propagate to the loop?
 **Confirmed when** failures reach the agent loop without classification.
 
 **Good shape for reference.** A small closed enum per subsystem, so callers
-can switch on it exhaustively.
-
-### C8 · Partial success — P2
-
-**Symptom.** Four of five parallel operations succeeded, but the batch is
+can switch on it exhaustively.`,
+  C8: `**Symptom.** Four of five parallel operations succeeded, but the batch is
 reported as a single failure and the four results are discarded.
 
 **Check.** Any place where multiple independent outcomes collapse into one
 status. Look for all-or-nothing combinators over independent work.
 
 **Confirmed when** independent results are discarded because a sibling
-failed.
-
-### C9 · Idempotency and side-effect safety — P1
-
-**Symptom.** An operation with an external effect times out *after* the
+failed.`,
+  C9: `**Symptom.** An operation with an external effect times out *after* the
 effect committed. The harness retries. The effect happens twice.
 
 **Check.** What does the retry wrapper actually enclose? If the retried
@@ -244,13 +198,8 @@ outcome is not the same as failure, and must not be treated as one.
 no idempotency key and no query-before-retry.
 
 **Invariant it protects.** Duplicate side effects = 0. Treat any violation as
-release-blocking.
-
-## Group 4 — Boundaries can be closed
-
-### C10 · Cancellation propagation — P1
-
-**Symptom.** The user cancels; the subprocess keeps running, the request
+release-blocking.`,
+  C10: `**Symptom.** The user cancels; the subprocess keeps running, the request
 keeps waiting, the timer keeps firing. Symptom is "it won't stop".
 
 **Check.**
@@ -265,11 +214,8 @@ keeps waiting, the timer keeps firing. Symptom is "it won't stop".
    everything stop and return immediately?
 
 **Confirmed when** a spawn has no kill registration, or a request is issued
-without the available cancellation signal.
-
-### C11 · Timeout layering — P2
-
-**Symptom.** Users always see a low-level connection error, never a
+without the available cancellation signal.`,
+  C11: `**Symptom.** Users always see a low-level connection error, never a
 meaningful "this tool timed out", so nobody can tell which tool is slow.
 
 **Check.** Count the timeout layers on one tool call and compare the numbers.
@@ -278,11 +224,8 @@ backstop**, so the normal timeout surfaces as a classified tool timeout. One
 layer only, or an inner backstop shorter than the outer budget, is the
 problem.
 
-**Confirmed when** the inner backstop is shorter than the outer tool budget.
-
-### C12 · Loop and budget limits — P1
-
-**Symptom.** The model calls the same tool forever. Cost climbs until someone
+**Confirmed when** the inner backstop is shorter than the outer tool budget.`,
+  C12: `**Symptom.** The model calls the same tool forever. Cost climbs until someone
 notices.
 
 **Check.** Are there hard ceilings on turns, tool calls, wall-clock runtime,
@@ -292,13 +235,8 @@ identical arguments)? When a ceiling is hit, is the outcome a distinct
 status, or does it look like normal completion?
 
 **Confirmed when** any of turns / tool calls / runtime has no ceiling, or a
-ceiling produces a status indistinguishable from success.
-
-## Group 5 — Finite resources are accounted for
-
-### C13 · Context management and truncation boundaries — P1
-
-**Symptom.** Long sessions hit the context limit and the harness either dies
+ceiling produces a status indistinguishable from success.`,
+  C13: `**Symptom.** Long sessions hit the context limit and the harness either dies
 or truncates across a tool-call boundary, producing exactly the C1 failure.
 
 **Check.**
@@ -315,11 +253,8 @@ or truncates across a tool-call boundary, producing exactly the C1 failure.
 or there is no path for "still too large after compaction".
 
 **Reported as not-implemented** when no context management exists — with an
-explicit note that this is a hard ceiling, not a passing grade.
-
-### C14 · Prompt prefix determinism — P1
-
-**Symptom.** The provider's prefix cache never hits. Nothing errors. Nothing
+explicit note that this is a hard ceiling, not a passing grade.`,
+  C14: `**Symptom.** The provider's prefix cache never hits. Nothing errors. Nothing
 is functionally wrong. Every request is billed at full input price. Because
 there is no failure signal, this survives in production for months.
 
@@ -346,13 +281,8 @@ difference is a defect. This is cheap and worth adding as a permanent test.
 
 **Note on framing.** This is a robustness property, not an optimization. A
 harness whose cost is several times higher than it needs to be, with no
-signal that anything is wrong, is failing — just slowly.
-
-## Group 6 — The run is observable
-
-### C15 · Trace completeness and replay — P2
-
-**Symptom.** Something went wrong in production and nobody can reconstruct
+signal that anything is wrong, is failing — just slowly.`,
+  C15: `**Symptom.** Something went wrong in production and nobody can reconstruct
 what happened, so no fix can be validated.
 
 **Check.** Is there an event record covering turn boundaries, tool calls and
@@ -382,12 +312,12 @@ excerpt** that a reader can check in under a minute. No location, no finding.
 
 | Verdict | Meaning |
 |---|---|
-| `confirmed` | Evidence directly supports the claim. |
-| `suspected` | A protection is structurally absent, but you could not confirm the path is reachable. State exactly what a human should check. |
-| `not-implemented` | The subsystem doesn't exist here. Not a pass. |
+| \`confirmed\` | Evidence directly supports the claim. |
+| \`suspected\` | A protection is structurally absent, but you could not confirm the path is reachable. State exactly what a human should check. |
+| \`not-implemented\` | The subsystem doesn't exist here. Not a pass. |
 
-**Do not upgrade on the way to the summary.** If a finding is `suspected` in
-the body it stays `suspected` in the summary. This is the single most common
+**Do not upgrade on the way to the summary.** If a finding is \`suspected\` in
+the body it stays \`suspected\` in the summary. This is the single most common
 way this kind of report loses credibility.
 
 **Do not pad.** Zero findings in a group is a fine result and should be
@@ -402,61 +332,9 @@ reader must be able to distinguish "checked, clean" from "never looked".
 
 # Report template
 
-```markdown
+\`\`\`markdown
 # Harness robustness audit
 
 Target: <path> @ <commit>
-Checks run: <n>    Findings: <n> confirmed / <n> suspected
-
-## Summary
-One line per check group, with its highest verdict.
-
-## Confirmed
-
-### C<n> · <check name>
-**<file>:<line>**
-<one sentence: what is wrong>
-
-<verbatim code excerpt>
-
-Consequence: <what breaks, concretely, and under what conditions>
-Direction: <what a fix looks like — not a patch>
-
-## Suspected
-Same shape, plus: "To confirm, check <specific thing>."
-
-## Not covered
-Which checks could not be evaluated, and why.
-
-## Cost
-Tokens consumed by this audit.
-```
-
-Report cost. The reader needs it to decide whether to run this regularly.
-
----
-
-# After the audit
-
-Findings are worth little without regression protection — the same defect
-reappears in three months. For each confirmed finding, the corresponding test
-is usually small and deterministic.
-
-Map from finding to test in `references/test-suite.md`. Build tests for the
-defects that were actually found, in the order the audit ranked them. Do not
-stand up the full test infrastructure first; that ordering has killed more of
-these efforts than any technical problem.
-
----
-
-# Reference files
-
-Read these only when you need them — they are not required for Mode A.
-
-- `references/test-suite.md` — building the deterministic test layer:
-  scripted model (read this before writing one; the obvious design does not
-  work), fake tools, fault injection, oracle design, finding→test mapping.
-- `references/ci-and-metrics.md` — the three pipelines, metric definitions
-  with default thresholds, flake policy, cost control.
-- `references/search-patterns.md` — language-specific search patterns for
-  each check. TypeScript/JavaScript, Python, Go.
+Checks run: <n>    Findings: <n> confirmed / <n> suspected`,
+}

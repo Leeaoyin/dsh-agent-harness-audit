@@ -3,7 +3,7 @@
  *
  * Stage C is pure code on purpose. Handing the finished findings back to a
  * model for a "summary" is how `suspected` silently becomes `confirmed` and
- * how claims with no evidence behind them enter the report. The skill warns
+ * how claims with no evidence behind them enter the report. The criteria warn
  * about exactly that, and the plugin must not undo it at the implementation
  * layer.
  *
@@ -12,10 +12,16 @@
 
 import type { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
+// Type-only side-effect imports: load the `ctx.fs` / `ctx.subagents`
+// augmentations of Context.
+import type {} from '@deepseek-ai/dsh-fs'
+import type {} from '@deepseek-ai/dsh-subagent'
 import { selectChecks, type Check, type LandmarkKind } from './checks.ts'
 import type { Config } from './config.ts'
+import type { Messages } from './i18n.ts'
+import { CHECK_CRITERIA, EVIDENCE_RULES } from './criteria.ts'
+import { CAPABILITY_PREAMBLE, scopePreamble } from './prompt.ts'
 import { reconPrompt } from './recon.ts'
-import { resolveSkillOrigin, type SkillOrigin } from './skill.ts'
 import {
   ActiveRun,
   addUsage,
@@ -26,8 +32,27 @@ import {
   type Usage,
 } from './state.ts'
 
-/** Tools an audit child may use, before filtering to what is registered. */
-const AUDIT_CHILD_TOOLS = ['skill', 'read', 'grep', 'glob', 'report_finding']
+/**
+ * Audit children inherit the parent's tools rather than being scoped to an
+ * allow-list.
+ *
+ * An earlier version passed `toolFilter: { allow: [...] }` to narrow each
+ * child, and it broke the plugin completely. The allow-list has to be built
+ * from names the CHILD's scope will recognise, but a plugin can only see its
+ * own scope: `ctx.tools.get('read')` returns undefined here because
+ * model-facing tools live on the agent plane, not the global layer this
+ * plugin registers into. The list therefore collapsed to just
+ * `report_finding`, and `tools.restrict()` removed everything else — recon
+ * subagents came back with `unknown tool "read"`, `unknown tool "glob"`,
+ * and even `unknown tool "report_landmark"`, so no audit could produce
+ * anything.
+ *
+ * There is no supported way to enumerate the child's scope before it exists,
+ * and `tools.restrict()` throws on a name that scope does not know, so
+ * guessing is worse than not scoping. Tool scoping was a cost optimisation,
+ * not a correctness requirement; the run-id gate in `report_finding` already
+ * covers the visibility concern it was meant to address.
+ */
 
 export interface RunMeta {
   runId: string
@@ -37,8 +62,6 @@ export interface RunMeta {
   workspaceRoot: string
   commit?: string
   language?: string
-  skill: SkillOrigin
-  skillName: string
   subagentProvider: string
   concurrency: number
   /**
@@ -60,6 +83,8 @@ export interface RunMeta {
   rejectionsByReason: Record<string, number>
   findingCount: number
   landmarkCount: number
+  /** Directory names refused as out of scope for this run. */
+  excludePaths: string[]
   lspAvailable: boolean | 'not-probed'
 }
 
@@ -110,31 +135,45 @@ async function pool<T>(items: readonly T[], limit: number, task: (item: T) => Pr
   await Promise.all(workers)
 }
 
-function checkPrompt(
+export function checkPrompt(
   check: Check,
-  skillName: string,
   landmarks: RunState['landmarks'],
   language: string | undefined,
   budget: number,
+  excludes: readonly string[] = [],
+  outputLanguage?: string,
 ): string {
   const relevant = landmarks.filter((l) => check.requires.includes(l.kind) || check.context.includes(l.kind))
   const lines = relevant.map((l) => `- ${l.kind}: ${l.file}:${l.line}${l.symbol === undefined ? '' : ` (${l.symbol})`} [confidence: ${l.confidence}]`)
+  // Only this check's criteria are sent. One check per subagent means the
+  // prompt never carries the other fourteen, which is both cheaper and the
+  // reason a finding cannot drift into a neighbouring check's territory.
+  const criteria = CHECK_CRITERIA[check.id]
   return [
-    `Load the skill \`${skillName}\`. Execute ONLY check item **${check.id}**.`,
-    'Ignore every other check item, and ignore PART 2 and PART 3 entirely.',
+    `Audit this codebase against check **${check.id} · ${check.name}**, and nothing else.`,
+    '',
+    'The criteria, in full:',
+    '',
+    criteria ?? '(no criteria are defined for this check — report nothing and say so)',
     '',
     'Relevant landmarks:',
     ...lines.length > 0 ? lines : ['- (none reported)'],
     '',
-    `Primary project language: ${language ?? 'unknown'}. Use that language's search cues from the skill.`,
+    `Primary project language: ${language ?? 'unknown'}.`,
     `Stay within roughly ${budget} tokens of work.`,
     '',
-    'Call `report_finding` once per finding. Include `direction`: what a fix looks like,',
-    'as a direction rather than a patch.',
+    CAPABILITY_PREAMBLE,
+    '',
+    scopePreamble(excludes),
+    '',
+    EVIDENCE_RULES,
+    '',
+    'Report each finding through `report_finding`, once per finding. Include `direction`:',
+    'what a fix looks like, as a direction rather than a patch.',
     'If you find nothing, do not call it at all — just finish. **Zero findings is a normal and',
     'acceptable result.**',
+    ...outputLanguage === undefined ? [] : ['', outputLanguage],
     '',
-    'Follow the skill\'s "Evidence rules": do not report a finding without a file and line number.',
     'The `evidence` you quote is checked against the file at the line you cite; a submission whose',
     'evidence is not actually there will be rejected.',
   ].join('\n')
@@ -147,12 +186,15 @@ function checkPrompt(
  * precondition for auditing.
  */
 async function readCommit(ctx: Context, root: string, signal?: AbortSignal): Promise<string | undefined> {
+  // `exactOptionalPropertyTypes` rejects an explicit `signal: undefined`, so
+  // the key is omitted rather than passed empty.
+  const opts = { cwd: root, ...signal === undefined ? {} : { signal } }
   try {
-    const headTarget = await ctx.fs.resolve('.git/HEAD', { cwd: root, signal })
+    const headTarget = await ctx.fs.resolve('.git/HEAD', opts)
     if (await ctx.fs.stat(headTarget, signal) === undefined) return undefined
     const head = (await ctx.fs.readText(headTarget, signal)).trim()
     if (!head.startsWith('ref: ')) return /^[0-9a-f]{7,40}$/iu.test(head) ? head : undefined
-    const refTarget = await ctx.fs.resolve(`.git/${head.slice(5).trim()}`, { cwd: root, signal })
+    const refTarget = await ctx.fs.resolve(`.git/${head.slice(5).trim()}`, opts)
     if (await ctx.fs.stat(refTarget, signal) === undefined) return undefined
     const sha = (await ctx.fs.readText(refTarget, signal)).trim()
     return /^[0-9a-f]{7,40}$/iu.test(sha) ? sha : undefined
@@ -187,9 +229,19 @@ export async function runAudit(
   ctx: Context,
   config: Config,
   active: ActiveRun,
-  options: { agent: Agent; signal: AbortSignal; requestedChecks: readonly string[] },
+  options: {
+    agent: Agent
+    signal: AbortSignal
+    requestedChecks: readonly string[]
+    /** Progress line sink. A blocking command has nowhere to put these; a job does. */
+    onProgress?: (line: string) => void
+    /** Message table for progress lines. */
+    messages: Messages
+  },
 ): Promise<AuditResult> {
   const { agent, signal } = options
+  const progress = options.onProgress ?? ((): void => {})
+  const m = options.messages
   const requested = options.requestedChecks.length > 0 ? options.requestedChecks : config.checks
   const { selected, unknown } = selectChecks(requested, config.priorityFloor)
   if (selected.length === 0) {
@@ -222,6 +274,7 @@ export async function runAudit(
     } satisfies CheckOutcome])),
     usageBySession: new Map(),
     childSessionIds: new Set(),
+    excludePaths: config.excludePaths,
     reconComplete: false,
   }
 
@@ -241,27 +294,19 @@ export async function runAudit(
       run.usageBySession.set(session.id, existing)
     })
 
-    const skill = await resolveSkillOrigin(ctx, config.skillName, { cwd: workspaceRoot, signal })
     const commit = await readCommit(ctx, workspaceRoot, signal)
 
     const provider = ctx.subagents.getProvider(config.subagentProvider)
     if (provider === undefined) {
       throw new Error(`subagent provider "${config.subagentProvider}" is not registered`)
     }
-    const canFilterTools = provider.capabilities?.toolFilter === true
-
-    // Filtering to registered names matters: tools.restrict() throws on an
-    // unknown name, which would fail the start outright.
-    const allow = [...AUDIT_CHILD_TOOLS, ...config.useLsp ? ['lsp'] : []]
-      .filter((name) => ctx.tools.get(name) !== undefined)
-
     const startChild = async (prompt: string, label: string): Promise<{ sessionId: string | undefined; stopReason: string }> => {
       const child = await ctx.subagents.start(config.subagentProvider, {
         label,
         prompt: [{ type: 'text', text: prompt }],
         parent: agent,
         signal,
-        ...canFilterTools && allow.length > 0 ? { toolFilter: { allow } } : {},
+        // No toolFilter — see the note at the top of this module.
       })
       run.childSessionIds.add(child.id)
       try {
@@ -273,8 +318,13 @@ export async function runAudit(
     }
 
     // ---- A. Recon -------------------------------------------------------
-    const recon = await startChild(reconPrompt(config.skillName), 'harness-audit recon')
+    progress(m.locating(selected.length, selected.map((c) => c.id).join(', ')))
+    const recon = await startChild(reconPrompt(config.excludePaths, m.outputLanguage), 'harness-audit recon')
     run.reconComplete = true
+
+    const kindCounts = new Map<string, number>()
+    for (const l of run.landmarks) kindCounts.set(l.kind, (kindCounts.get(l.kind) ?? 0) + 1)
+    progress(m.reconDone(run.landmarks.length, kindCounts.size, run.language ?? 'undetermined'))
 
     const lspAvailable = config.useLsp ? await probeLsp(ctx, run) : 'not-probed'
     const presentKinds = new Set<LandmarkKind>(run.landmarks.map((l) => l.kind))
@@ -289,6 +339,7 @@ export async function runAudit(
           outcome.status = 'skipped-missing-landmarks'
           outcome.missingLandmarks = missing
         }
+        progress(m.notCovered(check.id, missing.join(', ')))
         continue
       }
       runnable.push(check)
@@ -296,9 +347,10 @@ export async function runAudit(
 
     await pool(runnable, config.concurrency, async (check) => {
       const outcome = run.outcomes.get(check.id)
+      progress(m.checkRunning(check.id, check.name))
       try {
         const child = await startChild(
-          checkPrompt(check, config.skillName, run.landmarks, run.language, config.maxTokensPerCheck),
+          checkPrompt(check, run.landmarks, run.language, config.maxTokensPerCheck, config.excludePaths, m.outputLanguage),
           `harness-audit ${check.id}`,
         )
         if (outcome !== undefined) {
@@ -308,12 +360,15 @@ export async function runAudit(
             // Copy: the map entry stays live for any late-arriving event.
             if (usage !== undefined) outcome.usage = { ...usage }
           }
+          progress(m.checkDone(check.id, outcome.findingCount, outcome.rejectionCount, outcome.usage.inputTokens, outcome.usage.outputTokens))
         }
       } catch (error) {
+        const detail = error instanceof Error ? error.message : String(error)
         if (outcome !== undefined) {
           outcome.status = 'failed'
-          outcome.error = error instanceof Error ? error.message : String(error)
+          outcome.error = detail
         }
+        progress(m.checkFailed(check.id, detail))
       }
     })
 
@@ -355,8 +410,6 @@ export async function runAudit(
       workspaceRoot,
       ...commit === undefined ? {} : { commit },
       ...run.language === undefined ? {} : { language: run.language },
-      skill,
-      skillName: config.skillName,
       subagentProvider: config.subagentProvider,
       concurrency: config.concurrency,
       maxTokensPerCheckAdvisory: config.maxTokensPerCheck,
@@ -372,6 +425,7 @@ export async function runAudit(
       rejectionsByReason,
       findingCount: findings.length,
       landmarkCount: run.landmarks.length,
+      excludePaths: [...config.excludePaths],
       lspAvailable,
     }
 

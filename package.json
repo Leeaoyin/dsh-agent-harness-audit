@@ -2,17 +2,30 @@
   "name": "dsh-harness-audit",
   "version": "0.1.0",
   "description": "Audit an agent harness against the harness-evaluation criteria, with machine-enforced evidence validation.",
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "agent-harness",
+    "audit"
+  ],
+  "homepage": "https://github.com/Leeaoyin/dsh-agent-harness-audit#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Leeaoyin/dsh-agent-harness-audit.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Leeaoyin/dsh-agent-harness-audit/issues"
+  },
   "type": "module",
   "license": "MIT",
-  "main": "lib/index.js",
+  "main": "lib/index.mjs",
   "exports": {
     ".": {
-      "default": "./lib/index.js"
+      "default": "./lib/index.mjs"
     }
   },
   "files": [
     "lib",
-    "skills",
     "cordis.patch.yml"
   ],
   "dsh": {
@@ -21,20 +34,32 @@
     }
   },
   "scripts": {
-    "build": "tsdown",
+    "build": "tsc -p tsconfig.json && tsdown",
+    "prepack": "npm run build",
     "prepare": "tsdown",
     "test": "node tests/run.mjs"
   },
   "devDependencies": {
-    "tsdown": "^0.22.2"
+    "@deepseek-ai/dsh-jobs": "^0.1.0-rc.5",
+    "@deepseek-ai/dsh-settings": "^0.1.0-rc.5",
+    "@types/node": "^22.10.2",
+    "tsdown": "^0.22.2",
+    "typescript": "^5.9.2"
+  },
+  "dependencies": {
+    "@deepseek-ai/schemastery": "^3.18.1"
   },
   "peerDependencies": {
-    "@deepseek-ai/cordis": "*",
-    "@deepseek-ai/dsh-commands": "*",
-    "@deepseek-ai/dsh-fs": "*",
-    "@deepseek-ai/dsh-skill": "*",
-    "@deepseek-ai/dsh-subagent": "*",
-    "@deepseek-ai/dsh-tools": "*",
-    "@deepseek-ai/schemastery": "*"
+    "@deepseek-ai/cordis": "^4.0.1",
+    "@deepseek-ai/dsh-agent": "^0.1.0-rc.5",
+    "@deepseek-ai/dsh-commands": "^0.1.0-rc.5",
+    "@deepseek-ai/dsh-fs": "^0.1.0-rc.5",
+    "@deepseek-ai/dsh-llm": "^0.1.0-rc.5",
+    "@deepseek-ai/dsh-sandbox": "^0.1.0-rc.5",
+    "@deepseek-ai/dsh-sandbox-policy": "^0.1.0-rc.5",
+    "@deepseek-ai/dsh-skill": "^0.1.0-rc.5",
+    "@deepseek-ai/dsh-subagent": "^0.1.0-rc.5",
+    "@deepseek-ai/dsh-tools": "^0.1.0-rc.5",
+    "@deepseek-ai/dsh-user-questions": "^0.1.0-rc.5"
   }
 }

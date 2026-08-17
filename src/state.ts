@@ -18,7 +18,7 @@ export interface Finding {
   claim: string
   evidence: string
   consequence: string
-  /** "what a fix looks like — not a patch", per the skill's report template. */
+  /** "what a fix looks like — not a patch". */
   direction?: string
   confirmHint?: string
 }
@@ -34,6 +34,7 @@ export type RejectionReason =
   | 'line-out-of-range'
   | 'evidence-not-found'
   | 'missing-confirm-hint'
+  | 'out-of-scope-path'
 
 export interface Rejection {
   check: string
@@ -98,6 +99,8 @@ export interface RunState {
   usageBySession: Map<string, Usage>
   /** Sessions this run actually created; the filter for cost totals. */
   childSessionIds: Set<string>
+  /** Directory names refused as out of scope; see `./scope.ts`. */
+  excludePaths: readonly string[]
   /** True once recon is done and checks may report. */
   reconComplete: boolean
   language?: string

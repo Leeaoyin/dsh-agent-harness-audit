@@ -11,8 +11,13 @@
  */
 
 import type { Context } from '@deepseek-ai/cordis'
+// Type-only side-effect import: loads the `ctx.fs` augmentation of Context.
+import type {} from '@deepseek-ai/dsh-fs'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import { LANDMARK_KINDS, type LandmarkKind } from './checks.ts'
+import { LANDMARK_GUIDE } from './criteria.ts'
+import { CAPABILITY_PREAMBLE, scopePreamble } from './prompt.ts'
+import { excludedBy, excludedMessage } from './scope.ts'
 import type { ActiveRun } from './state.ts'
 
 export function registerReportLandmark(ctx: Context, active: ActiveRun): void {
@@ -49,6 +54,9 @@ export function registerReportLandmark(ctx: Context, active: ActiveRun): void {
       }
 
       const file = String(args.file)
+      const excluded = excludedBy(file, run.excludePaths)
+      if (excluded !== undefined) return `REJECTED: ${excludedMessage(file, excluded)}`
+
       let target
       try {
         target = await ctx.fs.resolve(file, { cwd: run.workspaceRoot, signal: exec.signal })
@@ -85,12 +93,20 @@ export function registerReportLandmark(ctx: Context, active: ActiveRun): void {
 }
 
 /** Prompt for the reconnaissance subagent. */
-export function reconPrompt(skillName: string): string {
+export function reconPrompt(excludes: readonly string[], outputLanguage?: string): string {
   return [
-    `Load the skill \`${skillName}\` and execute ONLY its "Step 1 — Locate landmarks" section.`,
+    'Locate the landmarks described below. Do this and nothing else.',
     '',
-    'Call `report_landmark` for every landmark you locate. On your first call, also pass',
-    '`language` with the primary implementation language of the project under audit.',
+    LANDMARK_GUIDE,
+    '',
+    CAPABILITY_PREAMBLE,
+    '',
+    scopePreamble(excludes),
+    ...outputLanguage === undefined ? [] : ['', outputLanguage],
+    '',
+    'Report every landmark you locate through `report_landmark`, once per landmark. On the',
+    'first one, also pass `language` with the primary implementation language of the project',
+    'under audit.',
     '',
     'Not finding a given kind of landmark is a normal result — skip it. Do not invent one,',
     'and do not report a location you have not actually opened and read.',

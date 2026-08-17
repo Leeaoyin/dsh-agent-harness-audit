@@ -1,0 +1,12 @@
+node_modules/
+
+# Build output. Produced by `prepack` at publish time and by `prepare` on a
+# git install; never committed.
+lib/
+
+# Reports the plugin writes into a workspace it audits.
+.harness-audit/
+
+*.tgz
+*.log
+.DS_Store

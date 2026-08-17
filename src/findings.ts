@@ -1,8 +1,7 @@
 /**
  * `report_finding` and its evidence validation.
  *
- * This is the plugin's first irreplaceable contribution over the bare skill.
- * A skill can only ASK a model for a file and line in its prose; a tool can
+ * Criteria can only ASK a model for a file and line in prose; a tool can
  * refuse the submission. Rule 4 in particular — the quoted evidence must
  * actually occur near the cited line — is what keeps a model from inventing a
  * passage that merely looks like code.
@@ -15,7 +14,10 @@
  */
 
 import type { Context } from '@deepseek-ai/cordis'
+// Type-only side-effect import: loads the `ctx.fs` augmentation of Context.
+import type {} from '@deepseek-ai/dsh-fs'
 import { defineTool } from '@deepseek-ai/dsh-tools'
+import { excludedBy, excludedMessage } from './scope.ts'
 import type { ActiveRun, RejectionReason, Verdict } from './state.ts'
 
 const VERDICTS: readonly string[] = ['confirmed', 'suspected', 'not-implemented']
@@ -110,9 +112,13 @@ export function registerReportFinding(ctx: Context, active: ActiveRun): void {
         )
       }
 
-      // 2. The path must exist and resolve INSIDE the workspace. Resolving
-      //    through ctx.fs is also what stops `../` traversal.
+      // 2. The path must be first-party code, exist, and resolve INSIDE the
+      //    workspace. Resolving through ctx.fs is also what stops traversal.
       const file = String(args.file)
+      const excluded = excludedBy(file, run.excludePaths)
+      if (excluded !== undefined) {
+        return record('out-of-scope-path', excludedMessage(file, excluded), 'Report a finding in this project\'s own source.')
+      }
       let target
       try {
         target = await ctx.fs.resolve(file, { cwd: run.workspaceRoot, signal: exec.signal })
